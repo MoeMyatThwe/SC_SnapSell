@@ -55,22 +55,26 @@
         });
 
         $('#logout').click(function () {
-            $.ajax({
-                url: "http://localhost:8081/user/logout",//supply the api url
-                type: "POST",///supply the method
-                contentType: "application/json",//standard
-                dataType: "json",
-                success: function (data, textStatus, xhr) {//retrieve some data back from server
-                    console.log(data)
-                    window.localStorage.clear()
-                    window.location.assign("http://localhost:3001/loginPage.html")
-                }, error(xhr, textStatus, err) {
-                    console.log(err)
-                    console.log("Error")
-                }
-            });
-            return false;
-        });
+    const token = localStorage.getItem('token');
+    $.ajax({
+        url: "http://localhost:8081/user/logout",  // API URL
+        type: "POST",
+        contentType: "application/json",
+        dataType: "json",
+        headers: { "Authorization": "Bearer " + token },  // Add Authorization header
+        success: function (data, textStatus, xhr) {
+            console.log(data);
+            window.localStorage.clear();  // Clear local storage after logout
+            window.location.assign("http://localhost:3001/loginPage.html");  // Redirect to login page
+        },
+        error: function (xhr, textStatus, err) {
+            console.error("Logout Error:", xhr.responseText || err);
+            window.alert("Error during logout!");
+        }
+    });
+    return false;
+});
+
 
         $('#searchbutton').click(function () {
             var search = $('#search').val()

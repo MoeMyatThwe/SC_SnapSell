@@ -29,7 +29,7 @@ var userDB = {
 
 						if (result.length == 1) {
 							token = jwt.sign({ id: result[0].id }, config.key, {
-								expiresIn: 86400 //expires in 24 hrs
+								expiresIn: 3600 //reduce the expire time to 1 hour for security cuz 24 hrs is quite long
 							});
 							console.log("@@token " + token);
 							return callback(null, token, result);
@@ -48,7 +48,6 @@ var userDB = {
 	},
 
 	updateUser: function (username, firstname, lastname, id, callback) {
-
 		var conn = db.getConnection();
 		conn.connect(function (err) {
 			if (err) {
@@ -56,12 +55,9 @@ var userDB = {
 				return callback(err, null);
 			} else {
 				console.log("Connected!");
-
-				var sql = "update users set username = ?,firstname = ?,lastname = ? where id = ?;";
-
+				var sql = "UPDATE users SET username = ?, firstname = ?, lastname = ? WHERE id = ?";
 				conn.query(sql, [username, firstname, lastname, id], function (err, result) {
 					conn.end();
-
 					if (err) {
 						console.log(err);
 						return callback(err, null);
@@ -69,11 +65,11 @@ var userDB = {
 						console.log("No. of records updated successfully: " + result.affectedRows);
 						return callback(null, result.affectedRows);
 					}
-				})
+				});
 			}
-		})
+		});
 	},
-
+	
 	addUser: function (username, email, password, profile_pic_url, role, callback) {
 
 		var conn = db.getConnection();
@@ -101,7 +97,35 @@ var userDB = {
 			}
 		});
 	},
+
+	getUserById: function (id, callback) {  // New function to get user by ID
+        var conn = db.getConnection();
+
+        conn.connect(function (err) {
+            if (err) {
+                console.log(err);
+                return callback(err, null);
+            } else {
+                var sql = 'SELECT * FROM users WHERE id = ?';
+                conn.query(sql, [id], function (err, result) {
+                    conn.end();
+
+                    if (err) {
+                        console.log(err);
+                        return callback(err, null);
+                    } else {
+                        if (result.length > 0) {
+                            return callback(null, result[0]);
+                        } else {
+                            return callback(null, null);  // No user found
+                        }
+                    }
+                });
+            }
+        });
+    }
 };
+
 
 
 module.exports = userDB;

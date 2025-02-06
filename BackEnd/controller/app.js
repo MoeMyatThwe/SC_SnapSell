@@ -1,5 +1,5 @@
-
-
+const jwt = require('jsonwebtoken');
+const redisClient = require('../redisClient');  // Import Redis client
 var express = require('express');
 var bodyParser = require('body-parser');
 var app = express();
@@ -59,31 +59,80 @@ app.post('/user', function (req, res) {//Create User
 	});
 });
 
-app.post('/user/logout', function (req, res) {//Logout
-	console.log("..logging out.");
-	res.clearCookie('session-id'); //clears the cookie in the response
-	res.setHeader('Content-Type', 'application/json');
-	res.json({ success: true, status: 'Log out successful!' });
+// Store the token in Redis on logout
+app.post('/user/logout', verifyToken, async (req, res) => {
+    const token = req.token;  // Extract token from the request
 
+    try {
+        // Decode the token to get its expiration time
+        const decoded = jwt.decode(token);
+        const expirationTime = decoded.exp - Math.floor(Date.now() / 1000);  // Remaining time in seconds
+
+        if (expirationTime > 0) {
+            // Store the token in Redis with a TTL equal to the remaining expiration time
+            await redisClient.set(`blacklist:${token}`, 'true', { EX: expirationTime });
+        }
+
+        console.log("..logging out.");
+        res.status(200).json({ success: true, status: 'Log out successful!' });
+    } catch (err) {
+        console.error("Error during logout:", err);
+        res.status(500).json({ success: false, message: 'Failed to log out.' });
+    }
 });
 
 
-app.put('/user/update/', verifyToken, function (req, res) {//Update user info
-	var id = req.id
-	var username = req.body.username;
-	var firstname = req.body.firstname;
-	var lastname = req.body.lastname;
-	user.updateUser(username, firstname, lastname, id, function (err, result) {
-		if (err) {
-			res.status(500);
-			res.json({ success: false })
-		} else {
-			res.status(200);
-			res.setHeader('Content-Type', 'application/json');
-			res.json({ success: true })
-		}
-	});
+
+app.put('/user/update/', verifyToken, function (req, res) {
+    const id = req.id;
+
+    // Step 1: Check if the body contains an 'id' field that doesn't match the token's ID
+    if (req.body.id && req.body.id !== id) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid request. You cannot specify an 'id' in the body."
+        });
+    }
+
+    // Step 2: Validate input fields
+    const username = req.body.username;
+    const firstname = req.body.firstname;
+    const lastname = req.body.lastname;
+
+    if (!username && !firstname && !lastname) {
+        return res.status(400).json({
+            success: false,
+            message: "Please provide at least one field to update (username, firstname, or lastname)."
+        });
+    }
+
+    // Step 3: Check if the user exists using the token's ID
+    user.getUserById(id, (err, userData) => {
+        if (err) {
+            console.error("Error retrieving user:", err);
+            return res.status(500).json({ success: false, message: 'Internal server error.' });
+        }
+
+        if (!userData) {
+            return res.status(403).json({ success: false, message: 'Unauthorized access! User not found.' });
+        }
+
+        // Step 4: Proceed with the update
+        user.updateUser(username, firstname, lastname, id, function (err, result) {
+            if (err) {
+                console.error("Error updating user:", err);
+                return res.status(500).json({ success: false, message: 'Internal server error while updating user.' });
+            }
+
+            if (result === 0) {
+                return res.status(404).json({ success: false, message: 'No records updated. User may not exist.' });
+            }
+
+            res.status(200).json({ success: true, message: 'User updated successfully.' });
+        });
+    });
 });
+
 
 //Listing APIs
 app.post('/listing/', verifyToken, function (req, res) {//Add Listing
